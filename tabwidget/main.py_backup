@@ -7,7 +7,7 @@ import json
 import glob
 import pandas as pd
 
-from setup import Setup
+from .setup import Setup
 
 class Window(qtw.QWidget):
     def __init__(self):
@@ -20,6 +20,7 @@ class Window(qtw.QWidget):
         self.lineedit_path = qtw.QLineEdit("./data_1/")
         self.lineedit_name = qtw.QLineEdit("A")
         self.button_add = qtw.QPushButton("Add Path")
+        # self.button_search = qtw.QPushButton("Search...")
         self.button_plot = qtw.QPushButton("plot")
         self.button_print_setups = qtw.QPushButton("Print setups")
         self.button_close = qtw.QPushButton("Close")
@@ -41,15 +42,14 @@ class Window(qtw.QWidget):
         Vlayout.addLayout(Hlayout_1)
         Vlayout.addLayout(Hlayout_2)
         Vlayout.addWidget(self.button_add)
+        # Vlayout.addWidget(self.button_search)
         Vlayout.addWidget(self.tabwidget)
         Vlayout.addWidget(self.button_plot)
         Vlayout.addWidget(self.button_print_setups)
         Vlayout.addWidget(self.button_close)
 
-        ###################
-        #### Connect Buttons
-        #--->
-        self.button_add.clicked.connect(self.init_setup)
+        self.button_add.clicked.connect(self.add_setup)
+        # self.button_search.clicked.connect(self.search_for_probes)
         self.button_plot.clicked.connect(self.plot)
         self.button_close.clicked.connect(self.close)
         self.button_print_setups.clicked.connect(self.print_setups)
@@ -59,7 +59,8 @@ class Window(qtw.QWidget):
 
     def print_setups(self):
         for setup in self.list_setups:
-            setup.print_setup() 
+            print(json.dumps(setup, indent=4))
+
 
     def init_setup(self):
         name = self.lineedit_name.text()
@@ -67,61 +68,113 @@ class Window(qtw.QWidget):
         s = Setup(name, path)
         self.list_setups.append(s)
 
-        self.create_tab(s)
 
-    def create_tab(self, setup):
-        name = setup.name
-        path = setup.path
+
+    def add_setup(self):
+        name = self.lineedit_name.text()
+        path = self.lineedit_path.text()
+
+        index = len(self.list_setups)
+
+        new_name = name
+        prefix = 2
+        previous_names = [n["name"] for n in self.list_setups]
+        while (new_name in previous_names):
+            new_name = f"{name}_{prefix}"
+            prefix += 1
+
+        self.list_setups.append({
+            "name": new_name, 
+            "path": path})
+
+        print(f"create new Dataset: {new_name} from {path}")
+
+        for setup in self.list_setups:
+            print(f"{setup}")
 
         tab = qtw.QWidget()
-        listwidget = qtw.QListWidget()
-
-        files = setup.probefiles
-
-        listwidget.clear()
-        for f in files:
-            f = f.replace(path, '')
-            print(f"Found: {f}")
-            qtw.QListWidgetItem(f, listwidget)
-            listwidget.setCurrentRow(setup.selected_probe)
-
         Vlayout = qtw.QVBoxLayout()
         Vlayout.addWidget(qtw.QLabel(path))
-        Vlayout.addWidget(listwidget)
+        Vlayout.addWidget(qtw.QListWidget())
         tab.setLayout(Vlayout)
-        self.tabwidget.addTab(tab, name)
+        self.tabwidget.addTab(tab, new_name)
+
         self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
+
+        self.search_for_probes()
+
+        
 
     def plot(self):
         self.set_selected_probes()
         self.read_files()
         self.print_data()
 
+
     def set_selected_probes(self):
         for i in range(self.tabwidget.count()):
             tab = self.tabwidget.widget(i)
+            # index = self.tabwidget.currentIndex()
             listwidget = tab.findChild(qtw.QListWidget)
             selected_row = listwidget.currentRow()
-            self.list_setups[i].selected_probe = selected_row
+            # print(f"probe_idx: {selected_row}")
+            self.list_setups[i]["Selected_probe"] = selected_row
 
     def read_files(self):
         for setup in self.list_setups:
-            probe_idx = setup.selected_probe
-            setup.load_data(probe_idx)
+            probe_idx = setup["Selected_probe"]
+            filename = setup["Probes"][probe_idx]
+
+            if filename != "None":
+                df = pd.read_csv(filename)
+                setup["Data"] = df.to_dict()
+            else:
+                setup.pop("Data", None)
+
 
     def print_data(self):
         for setup in self.list_setups:
-            df = setup.data
-            probename = setup.probefiles[setup.selected_probe]
+            df = setup["Data"]
+            probename = setup["Probes"][setup["Selected_probe"]]
             print(f"{probename}")
             print(df)
 
+
+    def search_for_probes(self):
+        index = self.tabwidget.currentIndex()
+
+        if index != -1:
+            setup = self.list_setups[index]
+            path = setup["path"]
+            print(f"current index: {index} -- search in {path}") 
+
+            files = glob.glob(f"{path}**/*probe*.csv", recursive=True)
+            files.sort()
+            files.append("None")
+            setup["Probes"] = files
+            setup["Selected_probe"] = 0
+            tab = self.tabwidget.currentWidget()
+            listwidget = tab.findChild(qtw.QListWidget)
+            listwidget.clear()
+
+            for f in files:
+                f = f.replace(path, '')
+                print(f"Found: {f}")
+                qtw.QListWidgetItem(f, listwidget)
+            listwidget.setCurrentRow(setup["Selected_probe"])
+
+        else:
+            print("No setups loaded!")
+
+
+
     def delete_data(self, index):
+
         self.tabwidget.removeTab(index)
         print(f"-->remove index: {index}")
         del self.list_setups[index]
         for setup in self.list_setups:
-            print(f"{setup.name}")
+            print(f"{setup}")
 
 app = qtw.QApplication(sys.argv)
 screen = Window()

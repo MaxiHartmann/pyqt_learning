@@ -7,7 +7,7 @@ class Setup:
         self.path = path
 
         self.search_for_probes()
-        self.load_probe(0)
+        self.load_data(0)
 
     def search_for_probes(self):
 
@@ -20,7 +20,7 @@ class Setup:
         self.probefiles = files
         self.selected_probe = 0
 
-    def load_probe(self, index):
+    def load_data(self, index):
         filename = self.probefiles[self.selected_probe]
         if filename != "None":
             df = pd.read_csv(filename)
@@ -32,7 +32,9 @@ class Setup:
         # maybe better in json.dumps?!
         print(f"name: {self.name}")
         print(f"path: {self.path}")
-        print(f"data: {self.data}")
+        print(f"probefiles: {self.probefiles}")
+        print(f"selected_probe: {self.selected_probe}")
+        # print(f"data: {self.data}")
         # setup["Data"] = df.to_dict()
 
 
