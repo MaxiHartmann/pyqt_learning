@@ -6,17 +6,24 @@ import sys
 import json
 import glob
 import pandas as pd
+# import matplotlib.pyplot as plt
+# matplotlib.use('Qt5Agg')
 
 from setup import Setup
+from mplcanvas import MplCanvas
+
 
 class Window(qtw.QWidget):
     def __init__(self):
         qtw.QWidget.__init__(self)
+        self.setFixedWidth(1200)
+        self.setWindowTitle("Dataloader...")
+        Hlayout = qtw.QHBoxLayout()
+        self.setLayout(Hlayout)
+
+
+        # Left
         Vlayout = qtw.QVBoxLayout()
-        self.setWindowTitle("Create tabs...")
-        self.setFixedWidth(500)
-
-
         self.lineedit_path = qtw.QLineEdit("./data_1/")
         self.lineedit_name = qtw.QLineEdit("A")
         self.button_add = qtw.QPushButton("Add Path")
@@ -24,7 +31,6 @@ class Window(qtw.QWidget):
         self.button_print_setups = qtw.QPushButton("Print setups")
         self.button_close = qtw.QPushButton("Close")
 
-        self.setLayout(Vlayout)
         self.tabwidget = qtw.QTabWidget()
         self.tabwidget.setTabsClosable(True)
 
@@ -46,6 +52,12 @@ class Window(qtw.QWidget):
         Vlayout.addWidget(self.button_print_setups)
         Vlayout.addWidget(self.button_close)
 
+        
+        Hlayout.addLayout(Vlayout)
+        self.sc = MplCanvas(self, width=8, height=5, dpi=100)
+        Hlayout.addWidget(self.sc)
+
+
         ###################
         #### Connect Buttons
         #--->
@@ -55,7 +67,10 @@ class Window(qtw.QWidget):
         self.button_print_setups.clicked.connect(self.print_setups)
         self.tabwidget.tabCloseRequested.connect(lambda index: self.delete_data(index))
 
+
+
         self.list_setups = []
+        self.current_setup_idx = -1
 
     def print_setups(self):
         for setup in self.list_setups:
@@ -75,6 +90,7 @@ class Window(qtw.QWidget):
 
         tab = qtw.QWidget()
         listwidget = qtw.QListWidget()
+        listwidget.itemClicked.connect(self.set_selected_probes)
 
         files = setup.probefiles
 
@@ -90,19 +106,39 @@ class Window(qtw.QWidget):
         Vlayout.addWidget(listwidget)
         tab.setLayout(Vlayout)
         self.tabwidget.addTab(tab, name)
-        self.tabwidget.setCurrentIndex(self.tabwidget.count() - 1)
+        self.current_setup_idx = len(self.list_setups) - 1 
+        self.tabwidget.setCurrentIndex(self.current_setup_idx)
 
     def plot(self):
-        self.set_selected_probes()
         self.read_files()
         self.print_data()
+        self.create_matplotlib()
+
+
+    def create_matplotlib(self):
+
+        self.sc.axes.clear()
+
+        for s in self.list_setups:
+            if s.probefiles[s.selected_probe] != "None":
+
+                x = s.data['x']
+                y = s.data['y']
+                l = f"{s.name}:p{s.selected_probe}"
+                self.sc.axes.plot(x, y, label=l)
+
+        self.sc.axes.legend()
+        self.sc.draw()
+
+        
 
     def set_selected_probes(self):
-        for i in range(self.tabwidget.count()):
-            tab = self.tabwidget.widget(i)
-            listwidget = tab.findChild(qtw.QListWidget)
-            selected_row = listwidget.currentRow()
-            self.list_setups[i].selected_probe = selected_row
+        current_tab = self.current_setup_idx
+        tab = self.tabwidget.widget(current_tab)
+        listwidget = tab.findChild(qtw.QListWidget)
+        selected_row = listwidget.currentRow()
+        self.list_setups[current_tab].selected_probe = selected_row
+        # print(f"Current tab: {current_tab} {selected_row} {listwidget.currentItem().text()}")
 
     def read_files(self):
         for setup in self.list_setups:
@@ -127,4 +163,3 @@ app = qtw.QApplication(sys.argv)
 screen = Window()
 screen.show()
 sys.exit(app.exec_())
-
